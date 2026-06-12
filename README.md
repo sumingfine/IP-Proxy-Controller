@@ -6,7 +6,9 @@
 
 # 一键极速部署
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/a6216abcd/Free-Residential-IP-Proxy-Controller)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/linjian0507/IP-Proxy-Controller)
+
+> 如果 Cloudflare 一键部署页面出现 `HTTP 400`，优先使用下面的“交互式安全配置”流程部署；本加固版需要配置 Wrangler Secrets，手动流程更稳定。
 
 KUI面板正在集成融合免费免费住宅IP代理调度系统 https://github.com/a6216abcd/K-UI
 
