@@ -4,11 +4,11 @@
 
 本项目资源完全免费，均免费来自于互联网整合而成，如果有人问你收费，你肯定是上当受骗了！！！
 
-# 一键极速部署
+# 部署方式
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/linjian0507/IP-Proxy-Controller)
+本加固版推荐使用 `wrangler` 交互式部署，不推荐 Cloudflare 一键部署按钮。
 
-> 如果 Cloudflare 一键部署页面出现 `HTTP 400`，优先使用下面的“交互式安全配置”流程部署；本加固版需要配置 Wrangler Secrets，手动流程更稳定。
+Cloudflare 一键部署页面在创建 Git 仓库、D1 数据库或处理 Secrets 时可能直接显示 `HTTP 400`，而且不会完整配置 `WEB_PASS`、`PROXY_PASS`、`AGENT_TOKEN`。请优先按下方“交互式安全配置”流程部署。
 
 KUI面板正在集成融合免费免费住宅IP代理调度系统 https://github.com/a6216abcd/K-UI
 
