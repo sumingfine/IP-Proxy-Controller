@@ -1,0 +1,6 @@
+.deploy/
+.dev.vars
+.wrangler/
+node_modules/
+__pycache__/
+*.log

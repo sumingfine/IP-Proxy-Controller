@@ -1,0 +1,15 @@
+name = "proxycontroller"
+main = "src/index.js"
+compatibility_date = "2026-06-03"
+workers_dev = true
+
+# Non-sensitive values only. Run scripts/interactive_config.py and store
+# WEB_PASS, PROXY_PASS, and AGENT_TOKEN with Wrangler secrets.
+[vars]
+WEB_USER = "admin"
+PROXY_USER = "proxy"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "proxy_db"
+database_id = ""
