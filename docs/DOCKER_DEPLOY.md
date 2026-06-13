@@ -4,6 +4,54 @@
 
 如果你要在 Koyeb 上用一个 Docker 同时跑控制端和 Agent，请直接看本文最后的“九、Koyeb 单容器部署”。
 
+## 零构建：直接拉取公开镜像
+
+公开镜像地址：
+
+```text
+ghcr.io/sumingfine/ip-proxy-controller:latest
+```
+
+拉取：
+
+```bash
+docker pull ghcr.io/sumingfine/ip-proxy-controller:latest
+```
+
+直接运行一体化容器：
+
+```bash
+docker run -d \
+  --name ip-proxy-controller \
+  --privileged \
+  --restart unless-stopped \
+  -p 2055:2055 \
+  -p 7920:7920 \
+  -v proxy_controller_data:/data \
+  -v proxy_controller_workspace:/opt/proxy_lite \
+  -e HOST=0.0.0.0 \
+  -e PORT=2055 \
+  -e DATABASE_PATH=/data/proxy_controller.sqlite3 \
+  -e WEB_USER=admin \
+  -e WEB_PASS=请改成长随机密码 \
+  -e PROXY_USER=proxy \
+  -e PROXY_PASS=请改成长随机密码 \
+  -e AGENT_TOKEN=请改成长随机Token \
+  -e PUBLIC_BASE_URL=http://你的域名或IP:2055 \
+  ghcr.io/sumingfine/ip-proxy-controller:latest
+```
+
+也可以使用仓库里的 `compose.image.yaml`：
+
+```bash
+cp .env.example .env
+docker compose -f compose.image.yaml up -d
+```
+
+> 注意：这个镜像是“一容器跑全部”，需要 `--privileged` 和 `/dev/net/tun` 能力。Koyeb 部署时同样要开启 Privileged。
+
+如果别人拉取时遇到 `denied`、`unauthorized` 或 `401`，到 GitHub 仓库右侧 Packages 里找到 `ip-proxy-controller`，把 Package visibility 改成 `Public`。
+
 ## 一、架构
 
 - `controller`：Python 标准库 HTTP 服务，提供 Web 面板、API、Agent 脚本下发，使用 SQLite 保存状态。
@@ -173,7 +221,13 @@ socks5://PROXY_USER:PROXY_PASS@PROXY_ADVERTISE_HOST:PROXY_ADVERTISE_PORT#...
 
 ### 1. 创建 Koyeb Service
 
-在 Koyeb 里选择 GitHub 仓库部署，构建方式选 Dockerfile：
+推荐直接用公开镜像部署：
+
+```text
+Image: ghcr.io/sumingfine/ip-proxy-controller:latest
+```
+
+也可以在 Koyeb 里选择 GitHub 仓库部署，构建方式选 Dockerfile：
 
 ```text
 Dockerfile path: Dockerfile

@@ -1,0 +1,22 @@
+services:
+  ip-proxy-controller:
+    image: ghcr.io/sumingfine/ip-proxy-controller:latest
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: ${PORT:-2055}
+      DATABASE_PATH: /data/proxy_controller.sqlite3
+      WORKSPACE: /opt/proxy_lite
+    ports:
+      - "${PORT:-2055}:2055"
+      - "${PROXY_PORT:-7920}:7920"
+    volumes:
+      - controller_data:/data
+      - agent_data:/opt/proxy_lite
+    privileged: true
+    restart: unless-stopped
+
+volumes:
+  controller_data:
+  agent_data:

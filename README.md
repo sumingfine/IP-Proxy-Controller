@@ -6,6 +6,39 @@
 
 # 部署方式
 
+## 直接拉取 Docker 镜像
+
+本仓库会自动发布一体化镜像：
+
+```bash
+docker pull ghcr.io/sumingfine/ip-proxy-controller:latest
+```
+
+最小运行示例：
+
+```bash
+docker run -d \
+  --name ip-proxy-controller \
+  --privileged \
+  --restart unless-stopped \
+  -p 2055:2055 \
+  -p 7920:7920 \
+  -v proxy_controller_data:/data \
+  -v proxy_controller_workspace:/opt/proxy_lite \
+  -e HOST=0.0.0.0 \
+  -e PORT=2055 \
+  -e DATABASE_PATH=/data/proxy_controller.sqlite3 \
+  -e WEB_USER=admin \
+  -e WEB_PASS=请改成长随机密码 \
+  -e PROXY_USER=proxy \
+  -e PROXY_PASS=请改成长随机密码 \
+  -e AGENT_TOKEN=请改成长随机Token \
+  -e PUBLIC_BASE_URL=http://你的域名或IP:2055 \
+  ghcr.io/sumingfine/ip-proxy-controller:latest
+```
+
+镜像内同时运行控制端和 Agent。OpenVPN 需要 TUN 权限，所以必须给容器 `--privileged`，云平台也要开启对应的 privileged/TUN 能力。
+
 如果你希望完全脱离 Cloudflare Workers + D1，使用 Docker 自托管控制端和 Agent，请看：[docs/DOCKER_DEPLOY.md](docs/DOCKER_DEPLOY.md)。
 
 本加固版推荐使用 `wrangler` 交互式部署，不推荐 Cloudflare 一键部署按钮。
