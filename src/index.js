@@ -503,6 +503,8 @@ def setup_env():
     if not AUTH_FILE.exists():
         AUTH_FILE.write_text("vpn\\nvpn\\n", encoding="utf-8")
         AUTH_FILE.chmod(0o600)
+    if not Path("/dev/net/tun").exists():
+        print("[!] /dev/net/tun 不存在，OpenVPN 无法创建隧道。请确认容器已开启 privileged/TUN 权限。", flush=True)
     # 强制系统解除反向路径过滤，防止策略路由双拨时数据包被内核丢弃
     subprocess.run(["sysctl", "-w", "net.ipv4.conf.all.rp_filter=2"], capture_output=True)
     subprocess.run(["sysctl", "-w", "net.ipv4.conf.default.rp_filter=2"], capture_output=True)
@@ -634,6 +636,14 @@ def connect_node(tun: Tunnel, node: dict):
             role = "主网卡" if proxy_server.ACTIVE_BIND == tun.name else "备用网卡"
             print(f"[+] {tun.name} ({role}) 完全就绪: 入口 {node['ip']} -> 出口 {egress_ip}", flush=True)
         else:
+            try:
+                tail = "\\n".join(log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-8:])
+                if tail:
+                    print(f"[-] {tun.name} OpenVPN 未完成初始化，最近错误:\\n{tail}", flush=True)
+                else:
+                    print(f"[-] {tun.name} OpenVPN 未完成初始化，进程已退出或没有产生日志: {node['ip']}", flush=True)
+            except Exception as e:
+                print(f"[-] {tun.name} OpenVPN 未完成初始化，且读取错误日志失败: {e}", flush=True)
             try: process.terminate(); process.wait(2)
             except: process.kill()
             dead_ips.add(node["ip"])
