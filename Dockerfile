@@ -1,7 +1,7 @@
 FROM debian:12-slim
 
 ENV HOST=0.0.0.0 \
-    PORT=8080 \
+    PORT=2055 \
     DATABASE_PATH=/data/proxy_controller.sqlite3 \
     WORKSPACE=/opt/proxy_lite \
     PYTHONUNBUFFERED=1 \
@@ -34,6 +34,6 @@ RUN set -eux; \
     chmod +x /usr/local/bin/proxy-agent-entrypoint /usr/local/bin/koyeb-all-in-one-entrypoint
 
 VOLUME ["/data", "/opt/proxy_lite"]
-EXPOSE 8080 7920
+EXPOSE 2055 7920
 
 ENTRYPOINT ["koyeb-all-in-one-entrypoint"]

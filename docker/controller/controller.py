@@ -49,7 +49,7 @@ class AppConfig:
         advertise_port = os.getenv("PROXY_ADVERTISE_PORT", "").strip()
         return cls(
             host=os.getenv("HOST", "0.0.0.0"),
-            port=parse_port(os.getenv("PORT"), 8080),
+            port=parse_port(os.getenv("PORT"), 2055),
             database_path=database_path,
             public_base_url=os.getenv("PUBLIC_BASE_URL", "").rstrip("/"),
             web_user=os.getenv("WEB_USER", "admin"),

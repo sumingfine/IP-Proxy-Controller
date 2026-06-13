@@ -27,9 +27,9 @@ WEB_PASS=请改成长随机密码
 PROXY_USER=proxy
 PROXY_PASS=请改成长随机密码
 AGENT_TOKEN=请改成长随机Token
-PUBLIC_BASE_URL=http://你的控制端域名或IP:8080
-PORT=8080
-AGENT_CONTROLLER_URL=http://你的控制端域名或IP:8080
+PUBLIC_BASE_URL=http://你的控制端域名或IP:2055
+PORT=2055
+AGENT_CONTROLLER_URL=http://你的控制端域名或IP:2055
 ```
 
 `.env` 已加入 `.gitignore`，不要提交。
@@ -43,7 +43,7 @@ docker compose up -d --build controller
 访问：
 
 ```text
-http://你的控制端域名或IP:8080
+http://你的控制端域名或IP:2055
 ```
 
 浏览器会要求 Basic Auth：
@@ -168,7 +168,7 @@ socks5://PROXY_USER:PROXY_PASS@PROXY_ADVERTISE_HOST:PROXY_ADVERTISE_PORT#...
 
 本仓库根目录的 `Dockerfile` 是 Koyeb all-in-one 镜像，会在一个容器内同时启动：
 
-- 控制端：HTTP `8080`
+- 控制端：HTTP `2055`
 - Agent 代理服务：TCP `7920`
 
 ### 1. 创建 Koyeb Service
@@ -184,7 +184,7 @@ Dockerfile path: Dockerfile
 添加两个端口：
 
 ```text
-HTTP 8080
+HTTP 2055
 TCP 7920
 ```
 
@@ -192,7 +192,7 @@ HTTP 健康检查：
 
 ```text
 Path: /healthz
-Port: 8080
+Port: 2055
 Expected status: 200
 ```
 
@@ -218,7 +218,7 @@ Privileged: enabled
 
 ```env
 HOST=0.0.0.0
-PORT=8080
+PORT=2055
 DATABASE_PATH=/data/proxy_controller.sqlite3
 
 WEB_USER=admin

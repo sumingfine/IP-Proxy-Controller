@@ -7,10 +7,10 @@ services:
       - .env
     environment:
       HOST: 0.0.0.0
-      PORT: ${PORT:-8080}
+      PORT: ${PORT:-2055}
       DATABASE_PATH: /data/proxy_controller.sqlite3
     ports:
-      - "${PORT:-8080}:8080"
+      - "${PORT:-2055}:2055"
     volumes:
       - controller_data:/data
     restart: unless-stopped
@@ -24,7 +24,7 @@ services:
     env_file:
       - .env
     environment:
-      CONTROLLER_URL: ${AGENT_CONTROLLER_URL:-http://127.0.0.1:8080}
+      CONTROLLER_URL: ${AGENT_CONTROLLER_URL:-http://127.0.0.1:2055}
       WORKSPACE: /opt/proxy_lite
     network_mode: host
     cap_add:

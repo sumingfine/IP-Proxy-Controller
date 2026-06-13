@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONTROLLER_PORT="${CONTROLLER_PORT:-${PORT:-8080}}"
+CONTROLLER_PORT="${CONTROLLER_PORT:-${PORT:-2055}}"
 export HOST="${HOST:-0.0.0.0}"
 export PORT="$CONTROLLER_PORT"
 export DATABASE_PATH="${DATABASE_PATH:-/data/proxy_controller.sqlite3}"
