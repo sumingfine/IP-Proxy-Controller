@@ -577,6 +577,13 @@ def connect_node(tun: Tunnel, node: dict):
                "--connect-timeout", "5", "--connect-retry-max", "1", "--verb", "3"] + cipher_args
 
         with open(log_file, "w") as f: process = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT)
+        with state_lock:
+            tun.process = process
+            tun.node = node
+            tun.entry_ip = node["ip"]
+            tun.egress_ip = ""
+            tun.country = node["country"]
+            tun.ready = False
 
         success = False
         for _ in range(15):
@@ -657,6 +664,14 @@ def connect_node(tun: Tunnel, node: dict):
             except: process.kill()
             cleanup_tunnel(tun.name, tun.table_id)
             dead_ips.add(node["ip"])
+            with state_lock:
+                if tun.process == process:
+                    tun.process = None
+                    tun.node = None
+                    tun.entry_ip = ""
+                    tun.egress_ip = ""
+                    tun.country = ""
+                    tun.ready = False
     finally:
         with state_lock: tun.is_connecting = False
 
@@ -753,7 +768,7 @@ def maintain_pool():
             for ip in stale_ips: global_node_reservoir.pop(ip, None)
 
         with state_lock:
-            main_dead = (tun_main.process is None or tun_main.process.poll() is not None or not tun_main.ready)
+            main_dead = (not tun_main.is_connecting and (tun_main.process is None or tun_main.process.poll() is not None or not tun_main.ready))
             if main_dead:
                 if tun_backup.ready and tun_backup.process and tun_backup.process.poll() is None:
                     print(f"[*] ⚡ 主通道暴毙，软开关秒切！无缝接管业务至备用通道: 出口 {tun_backup.egress_ip or tun_backup.entry_ip}", flush=True)

@@ -128,6 +128,8 @@ def main() -> None:
             assert f'C2_URL = "{base_url}"'.encode("utf-8") in body
             assert b"agent.log" in body
             assert b"country_stats" in body
+            assert b"tun.process = process" in body
+            assert b"not tun_main.is_connecting" in body
             manager_script = Path(tmpdir) / "lite_manager.py"
             manager_script.write_bytes(body)
             subprocess.run([sys.executable, "-m", "py_compile", str(manager_script)], check=True)
