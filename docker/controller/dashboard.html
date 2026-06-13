@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proxy Controller</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #111827;
+      --panel-soft: #162033;
+      --line: #28364d;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --ok: #34d399;
+      --warn: #f59e0b;
+      --bad: #fb7185;
+      --idle: #64748b;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Arial, "Microsoft YaHei", sans-serif; }
+    header, main { max-width: 1240px; margin: 0 auto; padding: 20px; }
+    header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
+    h1 { margin: 0; font-size: 24px; letter-spacing: 0; }
+    h2 { margin: 0 0 12px; font-size: 16px; }
+    h3 { margin: 0; font-size: 14px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+    .stack { display: grid; gap: 16px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+    .metric { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-height: 82px; }
+    .metric strong { display: block; font-size: 24px; margin-top: 8px; }
+    label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 6px; }
+    input { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line); background: #080e1c; color: var(--text); font-size: 14px; }
+    button { border: 0; border-radius: 6px; padding: 10px 12px; color: #03111f; background: var(--accent); font-weight: 700; cursor: pointer; margin: 0 8px 8px 0; }
+    button.warn { background: var(--warn); }
+    button.ghost { background: #223047; color: var(--text); border: 1px solid var(--line); }
+    code, pre { font-family: Consolas, "Liberation Mono", monospace; }
+    pre { overflow: auto; white-space: pre-wrap; word-break: break-word; background: #070d18; border: 1px solid var(--line); border-radius: 6px; padding: 12px; color: #c7d2fe; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 8px; text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; }
+    .proxy-box { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+    .proxy-box input { font-family: Consolas, "Liberation Mono", monospace; }
+    .country-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .country-card { border: 1px solid var(--line); background: var(--panel-soft); border-radius: 8px; padding: 12px; min-height: 118px; display: grid; gap: 8px; }
+    .country-card.active { border-color: rgba(52, 211, 153, 0.75); box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.16); }
+    .country-card.target { border-color: rgba(56, 189, 248, 0.8); }
+    .country-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .country-code { font-size: 22px; font-weight: 800; letter-spacing: 0; }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px; font-size: 12px; border: 1px solid var(--line); color: var(--muted); }
+    .badge.ok { color: var(--ok); border-color: rgba(52, 211, 153, 0.45); background: rgba(52, 211, 153, 0.08); }
+    .badge.warn { color: var(--warn); border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.08); }
+    .badge.bad { color: var(--bad); border-color: rgba(251, 113, 133, 0.45); background: rgba(251, 113, 133, 0.08); }
+    .inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .mono { font-family: Consolas, "Liberation Mono", monospace; }
+    .status-ok { color: var(--ok); font-weight: 700; }
+    .status-warn { color: var(--warn); font-weight: 700; }
+    .status-idle { color: var(--idle); font-weight: 700; }
+    .section-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .small-button { padding: 7px 9px; font-size: 12px; margin: 0; }
+    @media (max-width: 960px) {
+      header { align-items: flex-start; flex-direction: column; }
+      .layout { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: 1fr; }
+      .proxy-box { align-items: stretch; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Proxy Controller</h1>
+      <div class="muted">__ORIGIN__</div>
+    </div>
+    <div class="muted">Web 用户：__WEB_USER__ · 代理用户：__PROXY_USER__</div>
+  </header>
+
+  <main>
+    <section class="summary">
+      <div class="metric"><span class="muted">在线母机</span><strong id="metric-servers">0</strong></div>
+      <div class="metric"><span class="muted">可选国家</span><strong id="metric-countries">0</strong></div>
+      <div class="metric"><span class="muted">候选节点</span><strong id="metric-candidates">0</strong></div>
+    </section>
+
+    <section class="layout">
+      <div class="stack">
+        <div class="panel">
+          <h2>策略配置</h2>
+          <label>目标国家</label>
+          <input id="country" value="JP" maxlength="4">
+          <label>代理端口</label>
+          <input id="port" type="number" min="1" max="65535" value="7920">
+          <div style="margin-top:14px">
+            <button onclick="saveConfig()">下发策略</button>
+            <button class="warn" onclick="switchIp()">强制换 IP</button>
+          </div>
+          <div class="muted" id="save-state">等待同步</div>
+        </div>
+
+        <div class="panel">
+          <h2>当前代理</h2>
+          <div id="proxy-status" class="muted">等待 Active 通道</div>
+          <div class="proxy-box">
+            <input id="proxy-url" readonly value="">
+            <button class="ghost" onclick="copyProxy()">复制</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Agent 接入</h2>
+          <pre>bash &lt;(curl -fsSL "__INSTALL_URL__")</pre>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="panel">
+          <div class="section-head">
+            <div>
+              <h2>国家可用性</h2>
+              <div class="muted" id="country-refresh">等待 Agent 上报国家池</div>
+            </div>
+            <button class="ghost small-button" onclick="loadAll()">刷新</button>
+          </div>
+          <div id="country-grid" class="country-grid"></div>
+        </div>
+
+        <div class="panel">
+          <h2>在线节点</h2>
+          <table>
+            <thead><tr><th>母机 IP</th><th>通道</th><th>目标</th><th>心跳</th><th>状态</th></tr></thead>
+            <tbody id="nodes"><tr><td colspan="5" class="muted">正在加载...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <h2>实时日志</h2>
+      <pre id="logs">等待 Agent 上报...</pre>
+    </section>
+  </main>
+
+<script>
+const state = { config: {"0": "JP", port: 7920}, nodes: [], countries: [], proxy: "" };
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[ch]));
+}
+
+function apiPath(path) {
+  return `${window.location.protocol}//${window.location.host}${path}`;
+}
+
+function ageText(ms) {
+  if (!ms) return '-';
+  const sec = Math.max(0, Math.floor((Date.now() - Number(ms)) / 1000));
+  if (sec < 60) return `${sec}s 前`;
+  const min = Math.floor(sec / 60);
+  return `${min}m 前`;
+}
+
+async function loadConfig() {
+  const res = await fetch(apiPath('/api/config'));
+  state.config = await res.json();
+  document.getElementById('country').value = state.config["0"] || 'JP';
+  document.getElementById('port').value = state.config.port || 7920;
+}
+
+async function saveConfig(countryOverride) {
+  const country = (countryOverride || document.getElementById('country').value || 'JP').toUpperCase().trim();
+  const body = { "0": country, port: Number(document.getElementById('port').value) || 7920 };
+  await fetch(apiPath('/api/config'), { method: 'POST', body: JSON.stringify(body) });
+  document.getElementById('country').value = country;
+  document.getElementById('save-state').textContent = `已下发 ${country}，等待 Agent 应用`;
+  await loadAll();
+}
+
+async function switchIp() {
+  const body = {
+    "0": (document.getElementById('country').value || 'JP').toUpperCase().trim(),
+    port: Number(document.getElementById('port').value) || 7920,
+    switch_trigger: Date.now()
+  };
+  await fetch(apiPath('/api/config'), { method: 'POST', body: JSON.stringify(body) });
+  document.getElementById('save-state').textContent = '重拨指令已下发';
+  await loadAll();
+}
+
+async function loadProxy() {
+  const res = await fetch(apiPath('/api/proxies'));
+  state.proxy = (await res.text()).trim().split('\\n').filter(Boolean)[0] || '';
+  document.getElementById('proxy-url').value = state.proxy;
+  document.getElementById('proxy-status').textContent = state.proxy ? 'Active 代理已就绪' : '还没有可用 Active 代理';
+  document.getElementById('proxy-status').className = state.proxy ? 'status-ok' : 'status-warn';
+}
+
+async function copyProxy() {
+  const value = document.getElementById('proxy-url').value;
+  if (!value) return;
+  await navigator.clipboard.writeText(value);
+  document.getElementById('proxy-status').textContent = '已复制代理地址';
+}
+
+async function loadCountries() {
+  const res = await fetch(apiPath('/api/country-stats'));
+  const data = await res.json();
+  state.countries = data.countries || [];
+  renderCountries(data);
+}
+
+function renderCountries(data) {
+  const grid = document.getElementById('country-grid');
+  const totalCandidates = state.countries.reduce((sum, item) => sum + Number(item.candidates || 0), 0);
+  document.getElementById('metric-countries').textContent = state.countries.length;
+  document.getElementById('metric-candidates').textContent = totalCandidates;
+  document.getElementById('country-refresh').textContent = data.updated_at ? `最近上报：${ageText(data.updated_at)}` : '等待 Agent 上报国家池';
+
+  if (!state.countries.length) {
+    grid.innerHTML = '<div class="muted">Agent 已在线但还没完成节点池抓取，稍等一轮刷新。</div>';
+    return;
+  }
+
+  grid.innerHTML = state.countries.map(item => {
+    const status = item.active ? '<span class="badge ok">Active</span>' : (item.standby ? '<span class="badge warn">Standby</span>' : '<span class="badge">候选</span>');
+    const ping = item.best_ping == null ? '-' : `${esc(item.best_ping)} ms`;
+    const classes = ['country-card'];
+    if (item.active) classes.push('active');
+    if (item.target) classes.push('target');
+    return `
+      <div class="${classes.join(' ')}">
+        <div class="country-head">
+          <span class="country-code">${esc(item.country)}</span>
+          ${status}
+        </div>
+        <div class="inline">
+          <span class="badge">${esc(item.candidates || 0)} 候选</span>
+          <span class="badge">${ping}</span>
+        </div>
+        <div class="muted mono">${(item.node_ips || []).map(esc).join('<br>') || '未拨通'}</div>
+        <button class="ghost small-button" onclick="saveConfig('${esc(item.country)}')">切到 ${esc(item.country)}</button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadNodes() {
+  const res = await fetch(apiPath('/api/nodes'));
+  state.nodes = await res.json();
+  document.getElementById('metric-servers').textContent = state.nodes.length;
+  const tbody = document.getElementById('nodes');
+  if (!state.nodes.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="muted">暂无在线节点</td></tr>';
+    document.getElementById('logs').textContent = '等待 Agent 上报...';
+    return;
+  }
+  tbody.innerHTML = state.nodes.map(node => {
+    let details = [];
+    try { details = JSON.parse(node.details || '[]'); } catch(e) {}
+    const channels = details.map(item => {
+      const label = item.active ? '<span class="status-ok">ACTIVE</span>' : '<span class="status-warn">STANDBY</span>';
+      return `${label} <span class="mono">${esc(item.tunnel)} ${esc(item.country)} ${esc(item.node_ip)}:${esc(item.port)}</span>`;
+    }).join('<br>') || '<span class="status-idle">等待拨号</span>';
+    const ago = Math.max(0, Math.floor((Date.now() - Number(node.last_seen || 0)) / 1000));
+    const status = ago < 30 ? '<span class="status-ok">在线</span>' : '<span class="status-warn">延迟</span>';
+    return `<tr><td><code>${esc(node.ip)}</code></td><td>${channels}</td><td>${esc(node.target_country || '-')}</td><td>${ago}s 前</td><td>${status}</td></tr>`;
+  }).join('');
+  document.getElementById('logs').textContent = state.nodes[0].logs || '等待 Agent 上报...';
+}
+
+async function loadAll() {
+  await Promise.all([loadConfig(), loadNodes(), loadCountries(), loadProxy()]);
+}
+
+loadAll();
+setInterval(loadAll, 5000);
+</script>
+</body>
+</html>

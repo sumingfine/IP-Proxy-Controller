@@ -92,10 +92,25 @@ def main() -> None:
             report = {
                 "ip": "203.0.113.10",
                 "details": [{"tunnel": "tun_main", "active": True, "country": "US", "port": 9000, "node_ip": "198.51.100.2"}],
+                "country_stats": [
+                    {"country": "US", "candidates": 12, "best_ping": 80, "active": True},
+                    {"country": "JP", "candidates": 7, "best_ping": 45, "active": False},
+                ],
+                "target_country": "US",
+                "proxy_port": 9000,
                 "logs": "agent online",
             }
             status, _ = request(base_url + "/api/report", method="POST", body=report, token="agent-token")
             assert status == 200, status
+
+            status, body = request(base_url + "/api/country-stats", auth="admin:web-pass")
+            assert status == 200, body
+            country_stats = json.loads(body.decode("utf-8"))
+            assert country_stats["target_country"] == "US"
+            assert country_stats["countries"][0]["country"] == "US"
+            assert country_stats["countries"][0]["active"] is True
+            assert country_stats["countries"][0]["candidates"] == 12
+            assert any(item["country"] == "JP" and item["candidates"] == 7 for item in country_stats["countries"])
 
             status, body = request(base_url + "/api/proxies", auth="admin:web-pass")
             assert status == 200, body
@@ -112,6 +127,7 @@ def main() -> None:
             assert status == 200, status
             assert f'C2_URL = "{base_url}"'.encode("utf-8") in body
             assert b"agent.log" in body
+            assert b"country_stats" in body
             manager_script = Path(tmpdir) / "lite_manager.py"
             manager_script.write_bytes(body)
             subprocess.run([sys.executable, "-m", "py_compile", str(manager_script)], check=True)
@@ -119,6 +135,10 @@ def main() -> None:
             status, body = request(base_url + "/agent?token=agent-token")
             assert status == 200, status
             assert b"python3 -u lite_manager.py" in body
+
+            status, body = request(base_url + "/", auth="admin:web-pass")
+            assert status == 200, status
+            assert "国家可用性".encode("utf-8") in body
         finally:
             proc.terminate()
             try:

@@ -446,10 +446,15 @@ def c2_heartbeat_loop():
     while True:
         if not public_ip or public_ip == "Unknown_IP": get_public_ip()
         details = []
+        active_countries = set()
+        current_target_country = target_country
         with state_lock:
+            current_target_country = target_country
             for tun in [tun_main, tun_backup]:
                 if tun.ready and tun.process and tun.process.poll() is None:
                     uptime = time.time() - tun.connected_at
+                    if tun.country:
+                        active_countries.add(tun.country)
                     details.append({
                         "tunnel": tun.name,
                         "active": proxy_server.ACTIVE_BIND == tun.name,
@@ -459,7 +464,34 @@ def c2_heartbeat_loop():
                         "node_ip": tun.egress_ip if tun.egress_ip else tun.entry_ip
                     })
 
-        payload = json.dumps({"ip": public_ip, "details": details, "logs": get_recent_logs()}).encode('utf-8')
+        country_map = {}
+        with reservoir_lock:
+            for node in global_node_reservoir.values():
+                country = str(node.get("country", "")).upper()
+                if not country or node.get("ip") in dead_ips:
+                    continue
+                item = country_map.setdefault(country, {"country": country, "candidates": 0, "best_ping": 9999, "active": False})
+                item["candidates"] += 1
+                try:
+                    item["best_ping"] = min(item["best_ping"], int(node.get("ping", 9999)))
+                except:
+                    pass
+        for country in active_countries:
+            item = country_map.setdefault(country, {"country": country, "candidates": 0, "best_ping": 9999, "active": False})
+            item["active"] = True
+        country_stats = sorted(country_map.values(), key=lambda x: (-x["candidates"], x["country"]))
+        for item in country_stats:
+            if item["best_ping"] == 9999:
+                item["best_ping"] = None
+
+        payload = json.dumps({
+            "ip": public_ip,
+            "details": details,
+            "logs": get_recent_logs(),
+            "country_stats": country_stats,
+            "target_country": current_target_country,
+            "proxy_port": PROXY_PORT
+        }).encode('utf-8')
         try:
             req = urllib.request.Request(f"{C2_URL}/api/report", data=payload, headers=get_c2_headers(), method='POST')
             urllib.request.urlopen(req, timeout=10)

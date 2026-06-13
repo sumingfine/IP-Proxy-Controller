@@ -113,6 +113,17 @@ class SQLiteStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS server_inventory (
+                  ip TEXT PRIMARY KEY,
+                  country_stats TEXT,
+                  target_country TEXT,
+                  proxy_port INTEGER,
+                  updated_at INTEGER
+                )
+                """
+            )
 
     def query_all(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         with self.lock, self.connect() as conn:
@@ -169,6 +180,28 @@ def sanitize_details(details: Any) -> list[dict[str, Any]]:
                 "port": parse_port(item.get("port"), DEFAULT_PORT),
                 "connected_time": min(connected_time, 31536000),
                 "node_ip": safe_net_text(item.get("node_ip"), 80),
+            }
+        )
+    return sanitized
+
+
+def sanitize_country_stats(stats: Any) -> list[dict[str, Any]]:
+    if not isinstance(stats, list):
+        return []
+    sanitized = []
+    for item in stats[:160]:
+        if not isinstance(item, dict):
+            continue
+        country = sanitize_country(item.get("country"))
+        candidates = parse_non_negative_int(item.get("candidates"), 0)
+        best_ping_raw = item.get("best_ping")
+        best_ping = None if best_ping_raw in (None, "") else min(parse_non_negative_int(best_ping_raw, 9999), 9999)
+        sanitized.append(
+            {
+                "country": country,
+                "candidates": min(candidates, 100000),
+                "best_ping": best_ping,
+                "active": bool(item.get("active")),
             }
         )
     return sanitized
@@ -296,6 +329,11 @@ class ControllerHandler(BaseHTTPRequestHandler):
             if not self.require_web():
                 return
             self.handle_proxies()
+            return
+        if path == "/api/country-stats":
+            if not self.require_web():
+                return
+            self.handle_country_stats()
             return
         if path == "/api/nodes":
             if not self.require_web():
@@ -442,13 +480,29 @@ class ControllerHandler(BaseHTTPRequestHandler):
                 self.send_body("Invalid report", status=HTTPStatus.BAD_REQUEST)
                 return
             details = sanitize_details(data.get("details", []))
+            country_stats = sanitize_country_stats(data.get("country_stats", []))
+            target_country = sanitize_country(data.get("target_country", ""))
+            proxy_port = parse_port(data.get("proxy_port"), DEFAULT_PORT)
+            now_ms = int(time.time() * 1000)
             self.store.execute(
                 """
                 INSERT INTO servers (ip, details, last_seen)
                 VALUES (?, ?, ?)
                 ON CONFLICT(ip) DO UPDATE SET details = excluded.details, last_seen = excluded.last_seen
                 """,
-                (report_ip, json.dumps(details, ensure_ascii=False), int(time.time() * 1000)),
+                (report_ip, json.dumps(details, ensure_ascii=False), now_ms),
+            )
+            self.store.execute(
+                """
+                INSERT INTO server_inventory (ip, country_stats, target_country, proxy_port, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(ip) DO UPDATE SET
+                  country_stats = excluded.country_stats,
+                  target_country = excluded.target_country,
+                  proxy_port = excluded.proxy_port,
+                  updated_at = excluded.updated_at
+                """,
+                (report_ip, json.dumps(country_stats, ensure_ascii=False), target_country, proxy_port, now_ms),
             )
             if data.get("logs"):
                 self.store.execute(
@@ -457,7 +511,7 @@ class ControllerHandler(BaseHTTPRequestHandler):
                     VALUES (?, ?, ?)
                     ON CONFLICT(ip) DO UPDATE SET logs = excluded.logs, updated_at = excluded.updated_at
                     """,
-                    (report_ip, str(data.get("logs"))[-MAX_LOG_BYTES:], int(time.time() * 1000)),
+                    (report_ip, str(data.get("logs"))[-MAX_LOG_BYTES:], now_ms),
                 )
             self.send_body("OK")
         except Exception:
@@ -466,6 +520,7 @@ class ControllerHandler(BaseHTTPRequestHandler):
     def clean_stale_servers(self) -> None:
         cutoff = int((time.time() - STALE_SERVER_SECONDS) * 1000)
         self.store.execute("DELETE FROM servers WHERE last_seen < ?", (cutoff,))
+        self.store.execute("DELETE FROM server_inventory WHERE updated_at < ?", (cutoff,))
 
     def handle_proxies(self) -> None:
         self.clean_stale_servers()
@@ -493,13 +548,92 @@ class ControllerHandler(BaseHTTPRequestHandler):
         self.clean_stale_servers()
         rows = self.store.query_all(
             """
-            SELECT s.*, l.logs
+            SELECT s.*, l.logs, i.country_stats, i.target_country, i.proxy_port, i.updated_at AS inventory_updated_at
             FROM servers s
             LEFT JOIN server_logs l ON s.ip = l.ip
+            LEFT JOIN server_inventory i ON s.ip = i.ip
             ORDER BY s.last_seen DESC
             """
         )
         self.send_json(rows)
+
+    def handle_country_stats(self) -> None:
+        self.clean_stale_servers()
+        rows = self.store.query_all(
+            """
+            SELECT s.ip, s.details, s.last_seen, i.country_stats, i.target_country, i.proxy_port, i.updated_at
+            FROM servers s
+            LEFT JOIN server_inventory i ON s.ip = i.ip
+            ORDER BY s.last_seen DESC
+            """
+        )
+        countries: dict[str, dict[str, Any]] = {}
+        target_country = "JP"
+        freshest = 0
+        for row in rows:
+            row_target = sanitize_country(row.get("target_country") or "")
+            if row_target != "NA":
+                target_country = row_target
+            freshest = max(freshest, parse_non_negative_int(row.get("updated_at"), 0), parse_non_negative_int(row.get("last_seen"), 0))
+            try:
+                stats = json.loads(row.get("country_stats") or "[]")
+            except json.JSONDecodeError:
+                stats = []
+            for item in sanitize_country_stats(stats):
+                country = item["country"]
+                entry = countries.setdefault(
+                    country,
+                    {
+                        "country": country,
+                        "candidates": 0,
+                        "best_ping": None,
+                        "active": False,
+                        "standby": False,
+                        "servers": 0,
+                        "node_ips": [],
+                    },
+                )
+                entry["candidates"] += item["candidates"]
+                entry["active"] = entry["active"] or item["active"]
+                if item["best_ping"] is not None:
+                    entry["best_ping"] = item["best_ping"] if entry["best_ping"] is None else min(entry["best_ping"], item["best_ping"])
+            try:
+                details = json.loads(row.get("details") or "[]")
+            except json.JSONDecodeError:
+                details = []
+            for detail in sanitize_details(details):
+                country = detail["country"]
+                entry = countries.setdefault(
+                    country,
+                    {
+                        "country": country,
+                        "candidates": 0,
+                        "best_ping": None,
+                        "active": False,
+                        "standby": False,
+                        "servers": 0,
+                        "node_ips": [],
+                    },
+                )
+                entry["servers"] += 1
+                entry["active"] = entry["active"] or detail["active"]
+                entry["standby"] = entry["standby"] or not detail["active"]
+                if detail["node_ip"] and detail["node_ip"] not in entry["node_ips"]:
+                    entry["node_ips"].append(detail["node_ip"])
+        for country, entry in countries.items():
+            entry["target"] = country == target_country
+            entry["node_ips"] = entry["node_ips"][:4]
+        ordered = sorted(
+            countries.values(),
+            key=lambda item: (
+                not item["target"],
+                not item["active"],
+                not item["standby"],
+                -item["candidates"],
+                item["country"],
+            ),
+        )
+        self.send_json({"target_country": target_country, "updated_at": freshest, "countries": ordered})
 
     def handle_countries(self) -> None:
         countries = {"US", "JP", "KR", "SG", "HK", "TW", "GB", "DE", "FR", "NL", "CA", "AU", "IN", "VN", "BR"}
@@ -590,6 +724,15 @@ python3 -u lite_manager.py 2>&1 | tee -a "$WORKSPACE/agent.log"
     def dashboard_html(self) -> str:
         origin = self.origin()
         install_url = f"{origin}/agent?token={urllib.parse.quote(self.config.agent_token)}"
+        template_path = Path(__file__).with_name("dashboard.html")
+        if template_path.exists():
+            template = template_path.read_text(encoding="utf-8")
+            return (
+                template.replace("__ORIGIN__", html.escape(origin))
+                .replace("__WEB_USER__", html.escape(self.config.web_user))
+                .replace("__PROXY_USER__", html.escape(self.config.proxy_user))
+                .replace("__INSTALL_URL__", html.escape(install_url))
+            )
         template = """<!doctype html>
 <html lang="zh-CN">
 <head>
