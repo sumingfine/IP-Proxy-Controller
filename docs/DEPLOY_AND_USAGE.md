@@ -2,6 +2,8 @@
 
 本文档适用于已加固版本：控制端运行在 Cloudflare Workers + D1，VPS 端运行 Python Agent，并通过 `AGENT_TOKEN` 与控制端通信。
 
+如果你需要完全 Docker 化自托管部署，不使用 Cloudflare Workers + D1，请改看：[DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)。
+
 ## 一、部署前准备
 
 你需要准备：

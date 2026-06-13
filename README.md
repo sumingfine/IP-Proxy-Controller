@@ -6,6 +6,8 @@
 
 # 部署方式
 
+如果你希望完全脱离 Cloudflare Workers + D1，使用 Docker 自托管控制端和 Agent，请看：[docs/DOCKER_DEPLOY.md](docs/DOCKER_DEPLOY.md)。
+
 本加固版推荐使用 `wrangler` 交互式部署，不推荐 Cloudflare 一键部署按钮。
 
 Cloudflare 一键部署页面在创建 Git 仓库、D1 数据库或处理 Secrets 时可能直接显示 `HTTP 400`，而且不会完整配置 `WEB_PASS`、`PROXY_PASS`、`AGENT_TOKEN`。请优先按下方“交互式安全配置”流程部署。

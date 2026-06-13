@@ -1,0 +1,41 @@
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: docker/controller/Dockerfile
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: ${PORT:-8080}
+      DATABASE_PATH: /data/proxy_controller.sqlite3
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - controller_data:/data
+    restart: unless-stopped
+
+  agent:
+    profiles:
+      - agent
+    build:
+      context: .
+      dockerfile: docker/agent/Dockerfile
+    env_file:
+      - .env
+    environment:
+      CONTROLLER_URL: ${AGENT_CONTROLLER_URL:-http://127.0.0.1:8080}
+      WORKSPACE: /opt/proxy_lite
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - agent_data:/opt/proxy_lite
+    restart: unless-stopped
+
+volumes:
+  controller_data:
+  agent_data:

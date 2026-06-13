@@ -1,6 +1,10 @@
 .deploy/
 .dev.vars
 .wrangler/
+.env
+data/
 node_modules/
 __pycache__/
 *.log
+*.sqlite
+*.sqlite3
