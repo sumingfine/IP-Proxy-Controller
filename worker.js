@@ -550,12 +550,21 @@ def setup_routing(tun_name: str, table_id: int):
     subprocess.run(["ip", "rule", "add", "oif", tun_name, "lookup", str(table_id), "pref", str(table_id)], capture_output=True)
     subprocess.run(["ip", "rule", "add", "iif", tun_name, "lookup", str(table_id), "pref", str(table_id + 1000)], capture_output=True)
 
+def cleanup_tunnel(tun_name: str, table_id: int):
+    subprocess.run(["pkill", "-f", f"openvpn.*--dev {tun_name}"], capture_output=True)
+    subprocess.run(["ip", "rule", "del", "pref", str(table_id)], capture_output=True)
+    subprocess.run(["ip", "rule", "del", "pref", str(table_id + 1000)], capture_output=True)
+    subprocess.run(["ip", "route", "flush", "table", str(table_id)], capture_output=True)
+    subprocess.run(["ip", "link", "set", tun_name, "down"], capture_output=True)
+    subprocess.run(["ip", "link", "delete", tun_name], capture_output=True)
+
 def connect_node(tun: Tunnel, node: dict):
     global dead_ips
     try:
         cfg_path = CONFIG_DIR / f"{tun.name}.ovpn"
         log_file = WORKSPACE / f"{tun.name}_err.log"
         cfg_path.write_text(node["config"], encoding="utf-8")
+        cleanup_tunnel(tun.name, tun.table_id)
 
         ovpn_version = subprocess.run(["openvpn", "--version"], capture_output=True, text=True).stdout
         cipher_args = ["--ncp-ciphers", "AES-128-CBC:AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305"] if "2.4" in ovpn_version else ["--data-ciphers", "AES-128-CBC:AES-256-GCM:AES-128-GCM:CHACHA20-POLY1305", "--data-ciphers-fallback", "AES-128-CBC"]
@@ -646,6 +655,7 @@ def connect_node(tun: Tunnel, node: dict):
                 print(f"[-] {tun.name} OpenVPN 未完成初始化，且读取错误日志失败: {e}", flush=True)
             try: process.terminate(); process.wait(2)
             except: process.kill()
+            cleanup_tunnel(tun.name, tun.table_id)
             dead_ips.add(node["ip"])
     finally:
         with state_lock: tun.is_connecting = False
@@ -788,6 +798,8 @@ def main():
     get_public_ip()
     setup_env()
     subprocess.run(["pkill", "-f", "openvpn.*tun_main|tun_backup"], capture_output=True)
+    cleanup_tunnel(tun_main.name, tun_main.table_id)
+    cleanup_tunnel(tun_backup.name, tun_backup.table_id)
 
     proxy_server.ACTIVE_BIND = tun_main.name
 
